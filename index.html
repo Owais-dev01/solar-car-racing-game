@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Solar Car Racing — Enhanced</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #0d1117;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 100vh;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    transition: background 1.5s ease;
+  }
+  #wrapper { width: 720px; user-select: none; }
+  h1 { color: #fff; font-size: 18px; font-weight: 600; margin-bottom: 10px;
+       letter-spacing: 2px; text-align: center; text-transform: uppercase;
+       text-shadow: 0 0 20px rgba(239,159,39,0.5); }
+  #hud { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 8px; }
+  .hcard {
+    border-radius: 10px; padding: 8px 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(4px);
+    transition: background 1.5s, border-color 1.5s;
+  }
+  .hcard.day-theme   { background: rgba(255,220,100,0.12); border-color: rgba(255,220,100,0.3); }
+  .hcard.cloud-theme { background: rgba(160,180,200,0.15); border-color: rgba(160,180,200,0.3); }
+  .hcard.night-theme { background: rgba(30,30,80,0.7);     border-color: rgba(100,120,255,0.25);}
+  .hl { font-size: 10px; color: rgba(255,255,255,0.55); margin-bottom: 3px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .hv { font-size: 17px; font-weight: 700; color: #fff; }
+  .hv.green { color: #1D9E75; }
+  .hv.amber { color: #EF9F27; }
+  .hv.red   { color: #E24B4A; }
+  #phase-bar {
+    display: flex; gap: 8px; align-items: center;
+    font-size: 12px; color: #aaa; margin-bottom: 6px;
+    flex-wrap: wrap;
+  }
+  .pill { padding: 4px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; transition: all 0.6s; }
+  .pill.day   { background: linear-gradient(90deg,#FAEEDA,#FFD17A); color: #633806; box-shadow: 0 0 12px rgba(255,200,60,0.4); }
+  .pill.cloud { background: linear-gradient(90deg,#c8d4dc,#a0b0bc); color: #2a3a44; box-shadow: 0 0 8px rgba(150,170,190,0.3); }
+  .pill.night { background: linear-gradient(90deg,#26215C,#3a3488); color: #CECBF6; box-shadow: 0 0 12px rgba(100,80,200,0.4); }
+  #msg { text-align:center; font-size:12px; color:#ccc; min-height:20px; margin-bottom:6px; transition: color 1s; }
+  canvas { border-radius: 12px; display:block; box-shadow: 0 8px 40px rgba(0,0,0,0.6); transition: box-shadow 1.5s; }
+  canvas.day-shadow   { box-shadow: 0 8px 40px rgba(255,200,60,0.25), 0 2px 12px rgba(0,0,0,0.4); }
+  canvas.cloud-shadow { box-shadow: 0 8px 40px rgba(120,140,160,0.25), 0 2px 12px rgba(0,0,0,0.5); }
+  canvas.night-shadow { box-shadow: 0 8px 40px rgba(60,50,160,0.35), 0 2px 12px rgba(0,0,0,0.6); }
+  #keys { font-size: 11px; color: #666; text-align: center; margin-top: 8px; }
+  #keys kbd { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 1px 5px; font-size: 10px; }
+  #weather-btns { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; }
+  .wbtn {
+    padding: 5px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.2);
+    cursor: pointer; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.06);
+    color: #ccc; transition: all 0.3s; letter-spacing: 0.5px;
+  }
+  .wbtn:hover { background: rgba(255,255,255,0.14); }
+  .wbtn.active-day   { background: rgba(255,200,60,0.25); border-color: rgba(255,200,60,0.6); color: #FFD060; box-shadow: 0 0 12px rgba(255,200,60,0.3); }
+  .wbtn.active-cloud { background: rgba(150,170,190,0.25); border-color: rgba(150,170,190,0.6); color: #c0d0dc; }
+  .wbtn.active-night { background: rgba(80,60,200,0.25); border-color: rgba(80,60,200,0.6); color: #CECBF6; box-shadow: 0 0 12px rgba(80,60,200,0.3); }
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <h1>&#9728; Solar Car Racing</h1>
+  <div id="hud">
+    <div class="hcard day-theme" id="hc1"><div class="hl">Speed</div><div class="hv" id="h-spd">0 km/h</div></div>
+    <div class="hcard day-theme" id="hc2"><div class="hl">Battery</div><div class="hv green" id="h-bat">100%</div></div>
+    <div class="hcard day-theme" id="hc3"><div class="hl">Solar Power</div><div class="hv" id="h-sol">0 W</div></div>
+    <div class="hcard day-theme" id="hc4"><div class="hl">Distance</div><div class="hv" id="h-dist">0.00 km</div></div>
+  </div>
+  <div id="phase-bar">
+    Mode: <span id="phase-pill" class="pill day">☀️ Daytime — solar + battery</span>
+    <span style="margin-left:4px;font-size:11px;opacity:0.6;">Press D / C / N to switch</span>
+  </div>
+  <div id="weather-btns">
+    <button class="wbtn active-day" id="btn-day"   onclick="setPhase('day')"  >☀️ Day</button>
+    <button class="wbtn"            id="btn-cloud" onclick="setPhase('cloud')">🌥️ Cloudy</button>
+    <button class="wbtn"            id="btn-night" onclick="setPhase('night')">🌙 Night</button>
+  </div>
+  <div id="msg">Press an arrow key or tap a button to start</div>
+  <canvas id="gc" width="720" height="420" tabindex="0"></canvas>
+  <div id="keys">
+    <kbd>↑↓</kbd> accelerate/brake &nbsp;|&nbsp; <kbd>←→</kbd> steer &nbsp;|&nbsp;
+    <kbd>Space</kbd> hard brake &nbsp;|&nbsp; <kbd>D</kbd><kbd>C</kbd><kbd>N</kbd> weather &nbsp;|&nbsp; <kbd>R</kbd> restart
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+const W = 720, H = 420;
+
+const PARAMS = {
+  area:6, eff:0.22, irr_day:900, irr_cloud:250, irr_night:0,
+  bat_kwh:40, mot_kw:15, mass:800, cd:0.30, af:2.0,
+  cr:0.012, eta_drv:0.90, volt:400, g:9.81, rho:1.225
+};
+const DRAIN_MULTIPLIER = 80;
+
+function solarPower(irr){ return PARAMS.area * PARAMS.eff * irr; }
+function pWheel(vms){ return (0.5*PARAMS.rho*PARAMS.cd*PARAMS.af*vms*vms + PARAMS.cr*PARAMS.mass*PARAMS.g)*vms; }
+function pMotor(vms){ return vms>0 ? pWheel(vms)/PARAMS.eta_drv : 0; }
+function maxSpeed(pw){
+  if(pw<=0) return 0;
+  let lo=0, hi=55;
+  if(pMotor(hi)<pw) return hi;
+  for(let i=0;i<80;i++){ const m=(lo+hi)/2; pMotor(m)<pw?lo=m:hi=m; }
+  return (lo+hi)/2;
+}
+
+// ---- Phase definitions ----
+const PHASES = {
+  day:   { label:'☀️ Daytime — solar + battery', cls:'day',   irr:900 },
+  cloud: { label:'🌥️ Cloudy — partial solar',   cls:'cloud', irr:250 },
+  night: { label:'🌙 Night — battery only',      cls:'night', irr:0   },
+};
+
+// Sky palette lerp targets
+const SKY_PALETTES = {
+  day:   { top:'#4FC3F7', mid:'#81D4FA', horizon:'#B3E5FC', ambient:'rgba(255,220,100,0.08)' },
+  cloud: { top:'#546E7A', mid:'#78909C', horizon:'#90A4AE', ambient:'rgba(100,120,130,0.12)' },
+  night: { top:'#050820', mid:'#0d1440', horizon:'#1a2050', ambient:'rgba(40,30,100,0.18)'   },
+};
+
+// Current blended sky
+let skyBlend = { top:'#4FC3F7', mid:'#81D4FA', horizon:'#B3E5FC' };
+let blendProgress = 1.0, blendFrom = null, blendTo = SKY_PALETTES.day;
+
+function hexToRgb(h){ const r=parseInt(h.slice(1,3),16), g=parseInt(h.slice(3,5),16), b=parseInt(h.slice(5,7),16); return [r,g,b]; }
+function lerpHex(a,b,t){
+  const [ar,ag,ab]=hexToRgb(a), [br,bg,bb]=hexToRgb(b);
+  return '#'+[ar+(br-ar)*t, ag+(bg-ag)*t, ab+(bb-ab)*t].map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+}
+
+let sunAngle = 0.3; // day sun arc (0=east,1=west)
+let sunAnimT = 0;
+
+// ---- State ----
+const keys = {};
+window.addEventListener('keydown', e=>{
+  keys[e.key]=true;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+  if(e.key==='r'||e.key==='R') resetGame();
+  if(e.key==='c'||e.key==='C') setPhase('cloud');
+  if(e.key==='n'||e.key==='N') setPhase('night');
+  if(e.key==='d'||e.key==='D') setPhase('day');
+});
+window.addEventListener('keyup', e=>keys[e.key]=false);
+canvas.addEventListener('click',()=>canvas.focus());
+
+let phase, car, dist, batWh, started, gameOver, roadOffset, trees, solarParticles, cloudObjs, rainDrops, lightningTimer, lightningAlpha;
+
+function setPhase(p){
+  const prev = phase;
+  phase = p;
+  const ph = PHASES[p];
+  document.getElementById('phase-pill').textContent = ph.label;
+  document.getElementById('phase-pill').className = 'pill '+ph.cls;
+  // sky blend
+  blendFrom = {...skyBlend};
+  blendTo   = SKY_PALETTES[p];
+  blendProgress = 0;
+  // HUD card theming
+  ['hc1','hc2','hc3','hc4'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.className = 'hcard '+p+'-theme';
+  });
+  // canvas shadow
+  canvas.className = p+'-shadow';
+  // button states
+  ['day','cloud','night'].forEach(k=>{
+    const btn = document.getElementById('btn-'+k);
+    btn.className = 'wbtn' + (k===p ? ' active-'+k : '');
+  });
+  // init rain
+  if(p==='cloud') initRain();
+  else rainDrops = [];
+}
+
+function resetGame(){
+  phase = 'day';
+  car = {x:W/2-18, y:H-150, speed:0};
+  dist=0; batWh=PARAMS.bat_kwh*1000;
+  started=false; gameOver=false; roadOffset=0;
+  sunAngle=0.3; sunAnimT=0;
+  lightningTimer=0; lightningAlpha=0;
+  trees=[];
+  for(let i=0;i<14;i++) spawnTree(Math.random()*H);
+  cloudObjs=[];
+  for(let i=0;i<7;i++) cloudObjs.push({x:Math.random()*W, y:18+Math.random()*65, w:55+Math.random()*80, speed:0.25+Math.random()*0.35, fluff:Math.random()*0.4});
+  solarParticles=[];
+  rainDrops=[];
+  blendFrom=null; blendTo=SKY_PALETTES.day; blendProgress=1; skyBlend={...SKY_PALETTES.day};
+  setPhase('day');
+  document.getElementById('msg').textContent='Press an arrow key to start';
+  updateHUD(0,0);
+}
+
+function spawnTree(y){
+  const side=Math.random()<0.5?'left':'right';
+  trees.push({ x: side==='left'?40+Math.random()*85 : W-125+Math.random()*85, y, r:14+Math.random()*10, g:80+Math.random()*50 });
+}
+
+function initRain(){
+  rainDrops=[];
+  for(let i=0;i<120;i++) rainDrops.push({ x:Math.random()*W, y:Math.random()*H, vy:8+Math.random()*6, len:10+Math.random()*14, alpha:0.3+Math.random()*0.4 });
+}
+
+// ---- Sky gradient ----
+function drawSky(){
+  if(blendFrom && blendProgress<1){
+    blendProgress = Math.min(blendProgress+0.012, 1);
+    const t = blendProgress<1 ? 1-(1-blendProgress)*(1-blendProgress) : 1;
+    skyBlend.top     = lerpHex(blendFrom.top,     blendTo.top,     t);
+    skyBlend.mid     = lerpHex(blendFrom.mid,     blendTo.mid,     t);
+    skyBlend.horizon = lerpHex(blendFrom.horizon, blendTo.horizon, t);
+  }
+  const skyH = H*0.44;
+  const grad = ctx.createLinearGradient(0,0,0,skyH);
+  grad.addColorStop(0, skyBlend.top);
+  grad.addColorStop(0.55, skyBlend.mid);
+  grad.addColorStop(1, skyBlend.horizon);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,W,skyH);
+
+  // Ambient sky glow overlay
+  if(phase==='day'){
+    const glow = ctx.createRadialGradient(W-85,55,10,W-85,55,160);
+    glow.addColorStop(0,'rgba(255,230,100,0.18)');
+    glow.addColorStop(1,'transparent');
+    ctx.fillStyle=glow; ctx.fillRect(0,0,W,skyH);
+  }
+  if(phase==='night'){
+    const glow = ctx.createRadialGradient(W-85,55,10,W-85,55,140);
+    glow.addColorStop(0,'rgba(200,200,255,0.1)');
+    glow.addColorStop(1,'transparent');
+    ctx.fillStyle=glow; ctx.fillRect(0,0,W,skyH);
+  }
+}
+
+// ---- Sun ----
+let sunRayAngle = 0;
+function drawSun(){
+  sunRayAngle += 0.005;
+  const arc = Math.sin(sunAngle * Math.PI);
+  const cx = 80 + sunAngle*(W-160);
+  const cy = H*0.38 - arc*H*0.28;
+  const r = 30;
+  // glow
+  const glow = ctx.createRadialGradient(cx,cy,r*0.5,cx,cy,r*3.2);
+  glow.addColorStop(0,'rgba(255,240,100,0.35)');
+  glow.addColorStop(0.5,'rgba(255,200,50,0.12)');
+  glow.addColorStop(1,'transparent');
+  ctx.fillStyle=glow; ctx.fillRect(cx-r*3.5,cy-r*3.5,r*7,r*7);
+  // core
+  ctx.save();
+  ctx.shadowColor='rgba(255,220,80,0.7)'; ctx.shadowBlur=18;
+  ctx.fillStyle='#FFE060';
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  // inner highlight
+  ctx.fillStyle='rgba(255,255,200,0.55)';
+  ctx.beginPath(); ctx.arc(cx-7,cy-7,r*0.35,0,Math.PI*2); ctx.fill();
+  // rays
+  ctx.save(); ctx.translate(cx,cy); ctx.rotate(sunRayAngle);
+  ctx.strokeStyle='rgba(255,220,60,0.5)'; ctx.lineWidth=2.5;
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*(r+5), Math.sin(a)*(r+5));
+    ctx.lineTo(Math.cos(a)*(r+15), Math.sin(a)*(r+15));
+    ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(255,200,50,0.25)'; ctx.lineWidth=1.5;
+  for(let i=0;i<8;i++){
+    const a=(i+0.5)/8*Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a)*(r+4), Math.sin(a)*(r+4));
+    ctx.lineTo(Math.cos(a)*(r+22), Math.sin(a)*(r+22));
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// ---- Cloudy dim sun ----
+function drawCloudySun(){
+  const cx=W-90, cy=56;
+  ctx.save();
+  ctx.globalAlpha=0.22+Math.sin(Date.now()*0.001)*0.06;
+  const glow=ctx.createRadialGradient(cx,cy,5,cx,cy,60);
+  glow.addColorStop(0,'rgba(255,230,100,0.4)');
+  glow.addColorStop(1,'transparent');
+  ctx.fillStyle=glow; ctx.fillRect(cx-65,cy-65,130,130);
+  ctx.fillStyle='#d4c860';
+  ctx.beginPath(); ctx.arc(cx,cy,24,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=1; ctx.restore();
+}
+
+// ---- Moon ----
+let starList=null, twinkleT=0;
+function drawMoon(){
+  twinkleT+=0.018;
+  if(!starList){ starList=[]; for(let i=0;i<95;i++) starList.push({x:Math.random()*W,y:Math.random()*(H*0.41),r:0.5+Math.random()*1.4,ph:Math.random()*Math.PI*2,sp:0.5+Math.random()*1.5}); }
+  for(const s of starList){
+    const a=0.35+0.45*Math.sin(twinkleT*s.sp+s.ph);
+    ctx.fillStyle=`rgba(255,255,255,${a.toFixed(2)})`;
+    ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fill();
+  }
+  const cx=W-90,cy=58,r=28;
+  // moon glow
+  const mglow=ctx.createRadialGradient(cx,cy,r,cx,cy,r*3.5);
+  mglow.addColorStop(0,'rgba(180,190,255,0.18)');
+  mglow.addColorStop(1,'transparent');
+  ctx.fillStyle=mglow; ctx.fillRect(cx-r*3.6,cy-r*3.6,r*7.2,r*7.2);
+  ctx.fillStyle='#eeecd8';
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  // crescent mask
+  ctx.fillStyle='#050820';
+  ctx.beginPath(); ctx.arc(cx+10,cy-8,23,0,Math.PI*2); ctx.fill();
+  // craters
+  ctx.fillStyle='rgba(200,196,170,0.5)';
+  ctx.beginPath(); ctx.arc(cx-6,cy+5,4.5,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+3,cy+10,3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx-10,cy-3,2.5,0,Math.PI*2); ctx.fill();
+  // extra twinkle planet
+  ctx.fillStyle='rgba(255,200,120,0.7)'; ctx.beginPath(); ctx.arc(cx-45,cy+20,2.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(200,220,255,0.5)'; ctx.beginPath(); ctx.arc(cx-60,cy-5,1.5,0,Math.PI*2); ctx.fill();
+}
+
+// ---- Cloud objects ----
+function drawCloudObjects(){
+  const alpha = phase==='cloud'?0.90: phase==='day'?0.48:0.0;
+  if(alpha===0) return;
+  const col = phase==='cloud'?'#9aabba':'#ffffff';
+  ctx.globalAlpha=alpha;
+  for(const c of cloudObjs){
+    ctx.fillStyle=col;
+    ctx.beginPath(); ctx.ellipse(c.x,c.y,c.w/2,17+c.fluff*6,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x-24,c.y+10,c.w/3.2,13,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x+26,c.y+8,c.w/3.5,11,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x-8,c.y-12,c.w/4,10,0,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+// ---- Rain ----
+function drawRain(vms){
+  if(phase!=='cloud') return;
+  for(const d of rainDrops){
+    ctx.strokeStyle=`rgba(140,180,220,${d.alpha})`;
+    ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(d.x,d.y); ctx.lineTo(d.x-2,d.y+d.len); ctx.stroke();
+  }
+  // Lightning flash
+  if(lightningAlpha>0){
+    ctx.fillStyle=`rgba(200,220,255,${lightningAlpha*0.18})`;
+    ctx.fillRect(0,0,W,H);
+    lightningAlpha=Math.max(0,lightningAlpha-0.07);
+  }
+}
+
+// ---- Road ----
+function drawRoad(){
+  // Grass
+  const grassCol = phase==='night'?'#0a2010': phase==='cloud'?'#3a6030':'#4a8c3f';
+  ctx.fillStyle=grassCol; ctx.fillRect(0,0,W,H);
+  // Road surface
+  const roadCol = phase==='night'?'#2a2a2a': phase==='cloud'?'#484848':'#535353';
+  ctx.fillStyle=roadCol; ctx.fillRect(200,0,320,H);
+  // Kerbs
+  ctx.fillStyle='#3c3c3c'; ctx.fillRect(208,0,5,H); ctx.fillRect(507,0,5,H);
+  // Center dashes
+  ctx.strokeStyle = phase==='night'?'rgba(255,255,200,0.85)':'rgba(255,255,255,0.9)';
+  ctx.lineWidth=3; ctx.setLineDash([30,20]); ctx.lineDashOffset=-roadOffset;
+  ctx.beginPath(); ctx.moveTo(360,0); ctx.lineTo(360,H); ctx.stroke();
+  ctx.setLineDash([]);
+  // Lane guides
+  ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(280,0); ctx.lineTo(280,H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(440,0); ctx.lineTo(440,H); ctx.stroke();
+  // Wet road sheen on cloudy/night
+  if(phase==='cloud'||phase==='night'){
+    const sheen=ctx.createLinearGradient(200,0,520,0);
+    sheen.addColorStop(0,'transparent');
+    sheen.addColorStop(0.5, phase==='night'?'rgba(100,110,200,0.07)':'rgba(150,170,190,0.1)');
+    sheen.addColorStop(1,'transparent');
+    ctx.fillStyle=sheen; ctx.fillRect(200,0,320,H);
+  }
+}
+
+function drawTrees(){
+  for(const t of trees){
+    // Shadow under tree
+    if(phase==='day'){
+      ctx.fillStyle='rgba(0,0,0,0.12)';
+      ctx.beginPath(); ctx.ellipse(t.x,t.y+t.r*0.7,t.r*1.1,t.r*0.4,0,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='#6a4a2a'; ctx.fillRect(t.x-3,t.y,6,20);
+    const lightness = phase==='night'?12 : phase==='cloud'?22 : t.g/2.5;
+    const sat = phase==='night'?20 : phase==='cloud'?30:45;
+    ctx.fillStyle=`hsl(120,${sat}%,${lightness}%)`;
+    ctx.beginPath(); ctx.arc(t.x,t.y,t.r,0,Math.PI*2); ctx.fill();
+    if(phase==='day'){
+      ctx.fillStyle=`hsl(115,40%,${t.g/2.5+10}%)`;
+      ctx.beginPath(); ctx.arc(t.x-4,t.y-4,t.r*0.45,0,Math.PI*2); ctx.fill();
+    }
+  }
+}
+
+// ---- Headlight beams ----
+function drawHeadlights(x,y){
+  if(phase!=='night') return;
+  const beamL=ctx.createRadialGradient(x+11,y+62,2,x+11,y+150,70);
+  beamL.addColorStop(0,'rgba(255,255,200,0.35)');
+  beamL.addColorStop(1,'transparent');
+  const beamR=ctx.createRadialGradient(x+26,y+62,2,x+26,y+150,70);
+  beamR.addColorStop(0,'rgba(255,255,200,0.35)');
+  beamR.addColorStop(1,'transparent');
+  ctx.save();
+  ctx.fillStyle=beamL;
+  ctx.beginPath(); ctx.moveTo(x+8,y+62); ctx.lineTo(x-30,y+200); ctx.lineTo(x+14,y+200); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=beamR;
+  ctx.beginPath(); ctx.moveTo(x+29,y+62); ctx.lineTo(x+23,y+200); ctx.lineTo(x+65,y+200); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// ---- Solar particles ----
+function drawSolarParticles(){
+  for(const p of solarParticles){
+    ctx.globalAlpha=p.life*0.9;
+    ctx.fillStyle=p.col;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+// ---- Car ----
+function drawSolarPanel(x,y){
+  ctx.fillStyle='#1a3a6a'; ctx.fillRect(x+3,y+4,30,14);
+  // panel glow when solar active
+  if(phase==='day'){ ctx.fillStyle='rgba(55,138,221,0.25)'; ctx.fillRect(x+3,y+4,30,14); }
+  ctx.strokeStyle= phase==='day'?'#60aaf0':'#378ADD'; ctx.lineWidth=0.8;
+  for(let i=1;i<3;i++){ ctx.beginPath(); ctx.moveTo(x+3+i*10,y+4); ctx.lineTo(x+3+i*10,y+18); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(x+3,y+11); ctx.lineTo(x+33,y+11); ctx.stroke();
+}
+
+function drawCar(x,y){
+  drawHeadlights(x,y);
+  // Body
+  const bodyCol = phase==='night'?'#1050a0': phase==='cloud'?'#164a8a':'#185FA5';
+  ctx.fillStyle=bodyCol;
+  ctx.beginPath(); ctx.roundRect(x+4,y+14,28,44,5); ctx.fill();
+  // Roof
+  ctx.fillStyle=phase==='night'?'#0b3070':'#0C447C';
+  ctx.beginPath(); ctx.roundRect(x+8,y+10,20,22,4); ctx.fill();
+  // Window
+  const winCol = phase==='night'?'#8090c8':'#B5D4F4';
+  ctx.fillStyle=winCol; ctx.fillRect(x+10,y+12,16,10);
+  // window reflection
+  if(phase!=='night'){ ctx.fillStyle='rgba(255,255,255,0.25)'; ctx.fillRect(x+11,y+12,5,4); }
+  // Wheels
+  ctx.fillStyle='#1c1c1c';
+  [[x+2,y+15],[x+29,y+15],[x+2,y+42],[x+29,y+42]].forEach(([tx,ty])=>{ ctx.beginPath(); ctx.roundRect(tx,ty,5,10,2); ctx.fill(); });
+  ctx.fillStyle='rgba(255,255,255,0.18)';
+  [[x+3,y+17],[x+30,y+17],[x+3,y+44],[x+30,y+44]].forEach(([tx,ty])=>{ ctx.beginPath(); ctx.arc(tx+1.5,ty+3,1.5,0,Math.PI*2); ctx.fill(); });
+  // Headlights
+  const hLcol = phase==='night'?'#fffde0':'#EF9F27';
+  ctx.fillStyle=hLcol;
+  if(phase==='night'){ ctx.save(); ctx.shadowColor='rgba(255,255,200,0.9)'; ctx.shadowBlur=8; }
+  ctx.beginPath(); ctx.ellipse(x+10,y+60,4,3,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x+26,y+60,4,3,0,0,Math.PI*2); ctx.fill();
+  if(phase==='night') ctx.restore();
+  // Brake lights
+  ctx.fillStyle='#E24B4A';
+  ctx.beginPath(); ctx.ellipse(x+10,y+14,3,2,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x+26,y+14,3,2,0,0,Math.PI*2); ctx.fill();
+  drawSolarPanel(x,y);
+  // car roof ambient (night glow from streetlights)
+  if(phase==='night'){ ctx.fillStyle='rgba(80,100,200,0.1)'; ctx.beginPath(); ctx.roundRect(x+4,y+14,28,44,5); ctx.fill(); }
+}
+
+// ---- Battery bar ----
+function drawBatteryBar(pct){
+  const bx=W-52,by=H-100,bw=18,bh=80;
+  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.beginPath(); ctx.roundRect(bx-4,by-18,bw+8,bh+34,6); ctx.fill();
+  ctx.fillStyle='#111'; ctx.fillRect(bx,by,bw,bh);
+  const fh=bh*pct/100;
+  ctx.fillStyle= pct>50?'#1D9E75': pct>20?'#EF9F27':'#E24B4A';
+  ctx.fillRect(bx,by+bh-fh,bw,fh);
+  if(pct>50){ ctx.fillStyle='rgba(255,255,255,0.1)'; ctx.fillRect(bx,by+bh-fh,bw,fh*0.4); }
+  ctx.strokeStyle='#444'; ctx.lineWidth=1; ctx.strokeRect(bx,by,bw,bh);
+  ctx.fillStyle='#fff'; ctx.font='bold 10px Arial'; ctx.textAlign='center';
+  ctx.fillText(Math.round(pct)+'%',bx+bw/2,by+bh+14);
+  ctx.font='9px Arial'; ctx.fillStyle='#aaa'; ctx.fillText('BAT',bx+bw/2,by-6);
+}
+
+// ---- Speedometer ----
+function drawSpeedometer(spd){
+  const cx=52,cy=H-52,r=40;
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.arc(cx,cy,r+4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#0a0a14';
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#222'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI*0.75,Math.PI*2.25); ctx.stroke();
+  for(let i=0;i<=10;i++){
+    const a=Math.PI*0.75+i/10*Math.PI*1.5;
+    ctx.strokeStyle= i>=8?'#E24B4A':'#444'; ctx.lineWidth= i%5===0?2:1;
+    ctx.beginPath(); ctx.moveTo(cx+Math.cos(a)*(r-8),cy+Math.sin(a)*(r-8)); ctx.lineTo(cx+Math.cos(a)*(r-2),cy+Math.sin(a)*(r-2)); ctx.stroke();
+  }
+  const maxS=130, ang=Math.PI*0.75+(Math.PI*1.5)*Math.min(spd/maxS,1);
+  ctx.save();
+  if(spd>90){ ctx.shadowColor='#E24B4A'; ctx.shadowBlur=6; }
+  ctx.strokeStyle= spd>90?'#E24B4A':'#1D9E75'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+Math.cos(ang)*30,cy+Math.sin(ang)*30); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle='#fff'; ctx.font='bold 13px Arial'; ctx.textAlign='center'; ctx.fillText(Math.round(spd),cx,cy+5);
+  ctx.font='9px Arial'; ctx.fillStyle='#aaa'; ctx.fillText('km/h',cx,cy+17);
+}
+
+// ---- Ambient overlay ----
+function drawAmbientOverlay(){
+  if(phase==='night'){
+    ctx.fillStyle='rgba(5,8,40,0.28)'; ctx.fillRect(0,0,W,H);
+  } else if(phase==='cloud'){
+    ctx.fillStyle='rgba(80,95,110,0.14)'; ctx.fillRect(0,0,W,H);
+  }
+}
+
+// ---- Game over screen ----
+function drawGameOver(){
+  ctx.fillStyle='rgba(0,0,0,0.68)'; ctx.beginPath(); ctx.roundRect(W/2-170,H/2-80,340,160,12); ctx.fill();
+  ctx.strokeStyle='#E24B4A'; ctx.lineWidth=2; ctx.beginPath(); ctx.roundRect(W/2-170,H/2-80,340,160,12); ctx.stroke();
+  ctx.fillStyle='#E24B4A'; ctx.font='bold 22px Arial'; ctx.textAlign='center';
+  ctx.fillText('Battery Depleted!',W/2,H/2-38);
+  ctx.fillStyle='#ccc'; ctx.font='15px Arial'; ctx.fillText('Distance: '+(dist/1000).toFixed(2)+' km',W/2,H/2);
+  ctx.fillStyle='#888'; ctx.font='13px Arial'; ctx.fillText('Press R to restart',W/2,H/2+32);
+}
+
+function updateHUD(spd,sol){
+  const pct=Math.max(0,(batWh/(PARAMS.bat_kwh*1000))*100);
+  const el=document.getElementById('h-bat');
+  el.textContent=pct.toFixed(1)+'%';
+  el.className='hv '+(pct>50?'green':pct>20?'amber':'red');
+  document.getElementById('h-spd').textContent=Math.round(spd)+' km/h';
+  document.getElementById('h-sol').textContent=Math.round(sol)+' W';
+  document.getElementById('h-dist').textContent=(dist/1000).toFixed(2)+' km';
+}
+
+resetGame();
+canvas.focus();
+
+let last=null;
+function loop(ts){
+  if(!last) last=ts;
+  const dt=Math.min((ts-last)/1000,0.05);
+  last=ts;
+
+  const ph=PHASES[phase];
+  const Psolar=solarPower(ph.irr);
+  const PmotMax=PARAMS.mot_kw*1000;
+  const vmaxAll=maxSpeed(Psolar+PmotMax);
+  const vmaxNight=maxSpeed(PmotMax);
+
+  if((keys['ArrowUp']||keys['ArrowDown']||keys['ArrowLeft']||keys['ArrowRight'])&&!started&&!gameOver){
+    started=true;
+    document.getElementById('msg').textContent='';
+  }
+
+  if(started&&!gameOver){
+    const vmax_kmh=(phase==='night'?vmaxNight:vmaxAll)*3.6;
+    if(keys['ArrowUp']) car.speed=Math.min(car.speed+170*dt,vmax_kmh);
+    else if(keys['ArrowDown']) car.speed=Math.max(car.speed-200*dt,0);
+    else car.speed*=0.90;
+    if(keys[' ']) car.speed*=0.82;
+    if(keys['ArrowLeft']) car.x=Math.max(208,car.x-110*dt);
+    if(keys['ArrowRight']) car.x=Math.min(472,car.x+110*dt);
+
+    const vms=car.speed/3.6;
+    dist+=vms*dt;
+    roadOffset+=vms*dt*55;
+    if(roadOffset>50) roadOffset-=50;
+
+    // Sun arc animation
+    sunAnimT+=dt*0.012;
+    sunAngle=(sunAngle+dt*0.008)%1;
+
+    // Move trees/clouds
+    for(const t of trees){ t.y+=vms*dt*55; if(t.y>H+20){t.y=-20;t.x=(Math.random()<0.5?40+Math.random()*85:W-125+Math.random()*85);} }
+    for(const c of cloudObjs){ c.x-=c.speed+(phase==='cloud'?0.5:0); if(c.x<-c.w*0.7) c.x=W+c.w*0.7; }
+
+    // Rain movement
+    if(phase==='cloud'){
+      for(const d of rainDrops){ d.y+=d.vy*2; if(d.y>H){ d.y=-10; d.x=Math.random()*W; } }
+      lightningTimer-=dt;
+      if(lightningTimer<=0){ lightningTimer=5+Math.random()*12; lightningAlpha=Math.random()<0.4?1:0; }
+    }
+
+    // Battery
+    const Pmotor=pMotor(vms);
+    const Pnet=Psolar-Pmotor;
+    const drain=Pnet*dt/3600*DRAIN_MULTIPLIER;
+    if(Pnet>0) batWh=Math.min(batWh+drain,PARAMS.bat_kwh*1000);
+    else batWh=Math.max(0,batWh+drain);
+    if(batWh<=0&&Pmotor>Psolar){gameOver=true;car.speed=0;}
+
+    // Solar particles
+    if(Psolar>100&&Math.random()<(phase==='cloud'?0.07:0.22)){
+      solarParticles.push({x:car.x+8+Math.random()*20,y:car.y-2,vy:-(1.5+Math.random()*1.2),life:1.0,size:2+Math.random()*2,col:['#EF9F27','#FFD700','#FFA500','#ffe066'][Math.floor(Math.random()*4)]});
+    }
+    solarParticles=solarParticles.filter(p=>p.life>0);
+    solarParticles.forEach(p=>{p.y+=p.vy;p.x+=Math.sin(p.life*8)*0.4;p.life-=0.022;});
+
+    const pct=(batWh/(PARAMS.bat_kwh*1000))*100;
+    let info='';
+    if(phase==='day')   info=`Solar: ${Math.round(Psolar)}W · Max: ${Math.round(vmax_kmh)} km/h · ${Pnet>0?'⚡ Charging':'Drawing'} ${Math.abs(Math.round(Pnet))}W`;
+    if(phase==='cloud') info=`🌧️ Cloudy solar: ${Math.round(Psolar)}W · Reduced capacity · Battery ${Pnet<0?'draining':'charging'}`;
+    if(phase==='night') info=`🌙 No solar — battery only · Max: ${Math.round(vmax_kmh)} km/h · Battery: ${pct.toFixed(1)}%`;
+    document.getElementById('msg').textContent=info;
+    updateHUD(car.speed,Psolar);
+  }
+
+  // ---- Draw ----
+  drawSky();
+  if(phase==='day')   drawSun();
+  else if(phase==='cloud') drawCloudySun();
+  else drawMoon();
+  drawCloudObjects();
+  drawRoad();
+  drawTrees();
+  drawRain();
+  drawSolarParticles();
+  drawCar(car.x,car.y);
+  drawAmbientOverlay();
+  drawBatteryBar((batWh/(PARAMS.bat_kwh*1000))*100);
+  drawSpeedometer(car.speed);
+  if(gameOver) drawGameOver();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
